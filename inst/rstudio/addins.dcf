@@ -1,0 +1,9 @@
+Name: memtrack selection
+Description: memtrack currently selected lines
+Binding: memtrack_sel
+Interactive: true
+
+Name: memtrack selection and plot
+Description: memtrack currently selected lines and plot resultes
+Binding: memtrack_sel_plot
+Interactive: true
