@@ -13,29 +13,32 @@
 #'  #EXAMPLE1
 #'  }
 #' }
-#' @rdname start_memtrack
+#' @rdname start_perftrack
 #' @export
 #' @author Lorenzo Busetto, phD (2018) <lbusett@gmail.com>
 #' @importFrom glue glue
 #' @importFrom sys exec_background
 #'
-start_memtrack <- function(timestep = 1,
-                           trackmem = TRUE,
-                           trackCPU = FALSE,
-                           add_processes = "",
-                           outfile = tempfile(fileext = ".txt")) {
+start_perftrack <- function(timestep  = 1,
+                            trackmem  = TRUE,
+                            trackCPU  = TRUE,
+                            trackdisk = TRUE,
+                            gc_onstart = TRUE,
+                            add_processes = "",
+                            outfile = tempfile(fileext = ".txt")) {
 
+  stopifnot(is.logical(gc_onstart))
   stopifnot(is.numeric(timestep))
   stopifnot(is.character(outfile))
   stopifnot(dir.exists(dirname(outfile)))
-  stopifnot(is.character(add_processes))
+  stopifnot(all(is.character(add_processes)))
 
   if (Sys.info()["sysname"] == "Windows") {
 
     counters <- NULL
     countnames <- NULL
     processes <- "rsession"
-    if (!(add_processes == "")) {
+    if (!all(add_processes == "")) {
       processes <- c(processes, add_processes)
     }
     if (trackmem) {
@@ -43,19 +46,30 @@ start_memtrack <- function(timestep = 1,
       countnames <- c(countnames, glue::glue("Memory_{processes}"))
     }
     if (trackCPU) {
-      counters <- paste(counters, glue::glue("\"\\Process({processes})\\% Processor Time\""))
+      counters <- paste(counters, glue::glue("\"\\Process({processes})\\% CPU Usage\""))
       countnames <- c(countnames, glue::glue("CPU_perc_{processes}"))
     }
-    call_string <- glue::glue("typeperf {counters} -si {timestep} -sc 5000 -o {outfile}")
+    if (trackdisk) {
+      counters <- paste(counters, glue::glue("\"\\Process({processes})\\IO Read Bytes/sec\""))
+      counters <- paste(counters, glue::glue("\"\\Process({processes})\\IO Write Bytes/sec\""))
+      countnames <- c(countnames, glue::glue("diskread_{processes}"))
+      countnames <- c(countnames, glue::glue("diskwrite_{processes}"))
+    }
+
+    call_string <- glue::glue("typeperf {glue::glue_collapse(counters)} -si {timestep} -sc 5000 -o {outfile}")
+
+    if (gc_onstart) gc()
+
     currperfmon <- sys::exec_background(call_string)
-    assign(".currperfmon", currperfmon, envir=baseenv())
-    assign(".currperfmon_file", outfile, envir=baseenv())
-    assign(".currperfmon_processes", processes, envir=baseenv())
-    assign(".currperfmon_counters", countnames, envir=baseenv())
+    Sys.sleep(timestep)
+    assign(".currperfmon", currperfmon, envir = baseenv())
+    assign(".currperfmon_file", outfile, envir = baseenv())
+    assign(".currperfmon_processes", processes, envir = baseenv())
+    assign(".currperfmon_counters", countnames, envir = baseenv())
+    assign(".currperfmon_timestep", timestep, envir = baseenv())
+
   }
 }
-
-
 
 #' @title FUNCTION_TITLE
 #' @description FUNCTION_DESCRIPTION
@@ -68,35 +82,80 @@ start_memtrack <- function(timestep = 1,
 #'  #EXAMPLE1
 #'  }
 #' }
-#' @rdname start_memtrack
+#' @rdname stop_perftrack
 #' @export
 #' @author Lorenzo Busetto, phD (2018) <lbusett@gmail.com>
 #' @importFrom tools pskill
 #' @importFrom anytime anytime
-stop_memtrack <- function() {
-  gc()
-  currperfmon   <- get(".currperfmon", envir = baseenv())
-  currperffile  <- get(".currperfmon_file", envir = baseenv())
-  currperfnames <- get(".currperfmon_counters", envir = baseenv())
+stop_perftrack <- function(gc_onexit = TRUE) {
+
+  Sys.sleep(get(".currperfmon_timestep", envir = baseenv()))
+  currperfmon       <- get(".currperfmon", envir = baseenv())
+  currperffile      <- get(".currperfmon_file", envir = baseenv())
+  currperfnames     <- get(".currperfmon_counters", envir = baseenv())
   currperfprocesses <- get(".currperfmon_processes", envir = baseenv())
+
+  if (gc_onexit) {gc(verbose = FALSE)}
   tools::pskill(currperfmon)
 
-  perfdata <- read.delim(currperffile, sep = ",", stringsAsFactors = FALSE)
-  names(perfdata) <- c("Time", currperfnames)
-  perfdata[["Time"]] <- anytime::anytime(perfdata[["Time"]])
-  starttime <- min(perfdata[["Time"]])
-  perfdata[["Time"]] <- perfdata[["Time"]] - starttime
+  perfdata           <- utils::read.delim(currperffile, sep = ",", stringsAsFactors = FALSE)
+  names(perfdata)[1] <- "Time"
+  perfdata["Time"]   <- anytime::anytime(perfdata[, "Time"])
+  starttime          <- min(perfdata[, "Time"])
+  perfdata["Time"]   <- perfdata[, "Time"] - starttime
 
-  perfdata <- perfdata %>% tidyr::gather(variable, value, -Time) %>%
-     dplyr::mutate(counter = stringr::str_split_fixed(variable, "_", 2)[,1],
-                   process = stringr::str_split_fixed(variable, "_", 2)[,2]) %>%
-    dplyr::group_by(counter, process) %>%
-    dplyr::mutate(lvar = dplyr::lag(value, 1)) %>%
-    dplyr::mutate(value = value - lvar) %>%
-    dplyr::ungroup()
+  # Find "memory" counters ----
+  mem_cols <- grep( "Working.Set", names(perfdata))
+browser()
+  if (length(mem_cols) != 0) {
+    mem_data <- round(perfdata[mem_cols] / 1e06, 3)
+    mem_data <- sapply(mem_data, FUN = function(x) x - x[1])
+    mem_data <- cbind(perfdata["Time"], mem_data)
+    names(mem_data) <- c("Time", currperfprocesses)
+    mem_data <- reshape(mem_data, idvar = "Time", varying = list(2:3),
+                        times = currperfprocesses, direction = "long",
+                        timevar = "process", v.names = "memory")
+    row.names(mem_data) <- NULL
+  }
 
-  perfdata[["variable"]] <- NULL
-  perfdata[["lvar"]] <- NULL
+  # Find "cpu" counters ----
+  cpu_cols <- grep( "Processor.Time", names(perfdata))
+  if (length(cpu_cols) != 0) {
+    cpu_data <- perfdata[cpu_cols]
+    cpu_data <- cbind(perfdata["Time"], cpu_data)
+    names(cpu_data) <- c("Time", currperfprocesses)
+    cpu_data <- reshape(cpu_data, idvar="Time", varying = list(2:3),
+                        times = currperfprocesses, direction="long",
+                        timevar = "process", v.names = "CPU%")
+    row.names(cpu_data) <- NULL
+  }
 
-  perfdata
+  # Find "diskread" counters ----
+  read_cols <- grep( "IO.Read.Bytes.sec", names(perfdata))
+  if (length(read_cols) != 0) {
+    read_data <- perfdata[read_cols] / 1e06
+    read_data <- cbind(perfdata["Time"], read_data)
+    names(read_data) <- c("Time", currperfprocesses)
+    read_data <- reshape(read_data, idvar="Time", varying = list(2:3),
+                        times = currperfprocesses, direction="long",
+                        timevar = "process", v.names = "disk_read")
+    row.names(read_data) <- NULL
+  }
+
+  # Find "diskwrite" counters ----
+  write_cols <- grep( "IO.Write.Bytes.sec", names(perfdata))
+  if (length(write_cols) != 0) {
+    write_data <- perfdata[write_cols] / 1e06
+    write_data <- cbind(perfdata["Time"], write_data)
+    names(write_data) <- c("Time", currperfprocesses)
+    write_data <- reshape(write_data, idvar = "Time", varying = list(2:3),
+                         times = currperfprocesses, direction = "long",
+                         timevar = "process", v.names = "disk_write")
+    row.names(write_data) <- NULL
+  }
+  out <- cbind(mem_data,
+               cpu_data["CPU%"],
+               read_data["disk_read"],
+               write_data["disk_write"])
+  out
 }

@@ -1,4 +1,4 @@
 library(testthat)
 library(memtrack)
 
-test_check("memtrack")
+test_check("perftrackr")

@@ -1,6 +1,6 @@
-memtrack_selection <- function() {
+perftractr_selection <- function() {
   context <- rstudioapi::getActiveDocumentContext()
-  text <- context$selection[[1]]$text
+  text    <- context$selection[[1]]$text
 
   browser()
 

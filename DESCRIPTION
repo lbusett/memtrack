@@ -1,22 +1,24 @@
-Package: memtrack
-Title: What the Package Does (One Line, Title Case)
+Package: perftrackr
+Title: Allows monitoring memory allocation, CPU percentage and disk I/O of 
+ R code
 Version: 0.0.0.9000
 Authors@R: 
-    person(given = "First",
-           family = "Last",
+    person(given = "Lorenzo",
+           family = "Busetto",
            role = c("aut", "cre"),
-           email = "first.last@example.com")
+           email = "lbusett@gmail.com", 
+           comment = c(ORCID = "0000-0001-9634-6038"))
 Description: What the package does (one paragraph).
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
-URL: https://github.com/lbusett/memtrack
-BugReports: https://github.com/lbusett/memtrack/issues
+URL: https://github.com/lbusett/perftrackr
+BugReports: https://github.com/lbusett/perftrackr/issues
 Suggests: 
     testthat,
     spelling
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 6.1.0
+RoxygenNote: 6.1.1
 Imports: 
     magrittr
 Language: en-US

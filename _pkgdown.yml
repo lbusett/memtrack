@@ -1,0 +1,40 @@
+template:
+  params:
+    bootswatch: united
+navbar:
+  type: inverse
+  structure:
+    left:
+    - home
+    - intro
+    - reference
+    - articles
+    - tutorials
+    - news
+    right: github
+  components:
+    home:
+      icon: fa-home fa-lg
+      href: index.html
+    reference:
+      text: Reference
+      href: reference/index.html
+      icon: fa-file-code-o
+    news:
+      text: Changelog
+      href: news/index.html
+      icon: fa-newspaper-o
+    github:
+      icon: fa-github fa-lg
+      href: https://github.com/lbusett/perftrackr
+reference:
+- title: All functions
+  desc: ~
+  contents:
+  - '`hello`'
+  - '`start_perftrack`'
+  - '`stop_perftrack`'
+articles:
+- title: All vignettes
+  desc: ~
+  contents: '``'
