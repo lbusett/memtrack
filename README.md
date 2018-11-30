@@ -1,17 +1,17 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# memtrack
+# perftrackr
 
-The goal of memtrack is to …
+The goal of perftrackr is to …
 
 ## Installation
 
-You can install the released version of memtrack from
+You can install the released version of perftrackr from
 [CRAN](https://CRAN.R-project.org) with:
 
 ``` r
-install.packages("memtrack")
+install.packages("perftrackr")
 ```
 
 ## Example

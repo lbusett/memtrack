@@ -67,6 +67,49 @@ start_perftrack <- function(timestep      = 1,
     options(".currperfmon_file"      = outfile)
     options(".currperfmon_processes" = processes)
     options(".currperfmon_timestep"  = timestep)
+  }
+
+  cur_pid            <- ps::ps_pid(ps::ps_handle())
+  other_rsession_pid <- ps::ps()
+  other_rsession_pid <- other_rsession_pid[which(other_rsession_pid$name == "rsession"),"pid"]
+  other_rsession_pid <- other_rsession_pid[which(other_rsession_pid[["pid"]] != cur_pid),"pid"]
+
+  if (Sys.info()["sysname"] == "Linux") {
+
+    # Get pid of current rsession
+    counters <- NULL
+    countnames <- NULL
+    processes <- "rsession"
+    if (!all(add_processes == "")) {
+      processes <- c(processes, add_processes)
+    }
+    if (trackmem) {
+      counters <- paste(counters, glue::glue("\"\\Process({processes})\\Working Set\""))
+    }
+    if (trackCPU) {
+      counters <- paste(counters, glue::glue("\"\\Process({processes})\\% Processor Time\""))
+    }
+    if (trackdisk) {
+      counters <- paste(counters, glue::glue("\"\\Process({processes})\\IO Read Bytes/sec\""))
+      counters <- paste(counters, glue::glue("\"\\Process({processes})\\IO Write Bytes/sec\""))
+    }
+
+    call_string <- glue::glue("typeperf {glue::glue_collapse(counters)} -si {timestep} -sc 5000 -o {outfile}")
+
+    if (gc_onstart) gc()
+
+    currperfmon <- sys::exec_background(call_string)
+    Sys.sleep(timestep)
+    options(".currperfmon"           = currperfmon)
+    options(".currperfmon_file"      = outfile)
+    options(".currperfmon_processes" = processes)
+    options(".currperfmon_timestep"  = timestep)
+    options(".currperfmon_curpid"    = cur_pid)
+    if(length(other_rsession_pid[["pid"]] != 0)) {
+      options(".currperfmon_otherrsessionpid"  = other_rsession_pid[["pid"]])
+    } else {
+      options(".currperfmon_otherrsessionpid"  = NULL)
+    }
 
   }
 }
